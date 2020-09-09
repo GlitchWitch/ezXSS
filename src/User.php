@@ -489,7 +489,7 @@ class User
             $headers[] = 'Content-type: text/html; charset=iso-8859-1';
             mail(
                 $email,
-                '[ezXSS] Shared XSS on ' . htmlspecialchars($report['uri']),
+                'Shared XSS Report for ' . htmlspecialchars($report['uri']),
                 $htmlTemplate,
                 implode("\r\n", $headers)
             );
