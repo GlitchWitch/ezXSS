@@ -265,7 +265,7 @@ class Route
                 $headers[] = 'Content-type: text/html; charset=iso-8859-1';
                 mail(
                     $setting['email'],
-                    '[ezXSS] XSS on ' . htmlspecialchars($json->uri),
+                    'XSS on ' . htmlspecialchars($json->uri),
                     $htmlTemplate,
                     implode("\r\n", $headers)
                 );
