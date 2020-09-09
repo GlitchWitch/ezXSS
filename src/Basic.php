@@ -234,7 +234,6 @@ HTML;
               <div class="view-header">
                 <div class="header-title">
                   <h3 class="h">XSS Report #{{id}}</h3>
-                  <small>Get a fast view below or view the whole report on https://{{domain}}/manage/report/{{id}}</small>
                 </div>
               </div>
               <hr>
