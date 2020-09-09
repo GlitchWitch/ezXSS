@@ -12,7 +12,7 @@ Some features ezXSS has
 * Enable/Disable screenshots
 * Prevent double payloads from saving or alerting
 * Block domains
-* Share reports with a direct link or with other ezXSS users
+* Share reports with a direct link, via email or with other ezXSS users
 * Easily manage and view (multiple) reports
 * Secure your login with extra protection (2FA)
 * Killswitch
@@ -36,7 +36,7 @@ Some features ezXSS has
 * An SSL if you want to test on https websites (consider Cloudflare or Let's Encrypt for a free SSL)
 
 ## Installation
-ezXSS is ez to install with Apache, NGINX or docker
+ezXSS is ez to install with Apache, NGINX or Docker
 
 visit the [wiki](https://github.com/ssl/ezXSS/wiki/Installation) for installation instructions.
 
