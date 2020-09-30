@@ -47,11 +47,11 @@ class User
         $secret = $this->database->fetch('SELECT * FROM settings WHERE setting = "secret"');
 
         if (!password_verify($password, $passwordHash['value'])) {
-            return 'The password you entered is not valid.';
+            return 'Invalid credentials provided.';
         }
 
         if (strlen($secret['value']) == 16 && $this->basic->getCode($secret['value']) != $code) {
-            return 'The code is incorrect.';
+            return 'Invalid credentials provided.';
         }
 
         $this->createSession();
