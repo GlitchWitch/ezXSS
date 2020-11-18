@@ -25,9 +25,9 @@ class User
      */
     public function getCsrf()
     {
-        return (!isset($_SESSION['csrfToken'])) ? $_SESSION['csrfToken'] = bin2hex(
-            openssl_random_pseudo_bytes(32)
-        ) : $_SESSION['csrfToken'];
+        return $_SESSION['csrfToken'] ?? $_SESSION['csrfToken'] = bin2hex(
+                openssl_random_pseudo_bytes(32)
+            );
     }
 
     /**
@@ -43,14 +43,14 @@ class User
             return ['redirect' => 'dashboard'];
         }
 
-        $passwordHash = $this->database->fetch('SELECT * FROM settings WHERE setting = "password"');
-        $secret = $this->database->fetch('SELECT * FROM settings WHERE setting = "secret"');
+        $passwordHash = $this->database->fetchSetting('password');
+        $secret = $this->database->fetchSetting('secret');
 
-        if (!password_verify($password, $passwordHash['value'])) {
+        if (!password_verify($password, $passwordHash)) {
             return 'Invalid credentials provided.';
         }
 
-        if (strlen($secret['value']) == 16 && $this->basic->getCode($secret['value']) != $code) {
+        if (strlen($secret) === 16 && $this->basic->getCode($secret) != $code) {
             return 'Invalid credentials provided.';
         }
 
@@ -58,10 +58,9 @@ class User
 
         if (isset($_SESSION['redirect'])) {
             return ['redirect' => $_SESSION['redirect']];
-            unsset($_SESSION['redirect']);
-        } else {
-            return ['redirect' => 'dashboard'];
         }
+
+        return ['redirect' => 'dashboard'];
     }
 
     /**
@@ -71,7 +70,7 @@ class User
      */
     public function isLoggedIn()
     {
-        return (isset($_SESSION['login'])) ? $_SESSION['login'] : false;
+        return isset($_SESSION['login']) ? true : false;
     }
 
     /**
@@ -111,7 +110,7 @@ class User
             'CREATE TABLE IF NOT EXISTS `reports` (`id` int(11) NOT NULL AUTO_INCREMENT,`shareid` VARCHAR(50) NOT NULL,`cookies` text,`dom` longtext,`origin` varchar(500) DEFAULT NULL,`referer` varchar(500) DEFAULT NULL,`payload` varchar(500) DEFAULT NULL,`uri` varchar(500) DEFAULT NULL,`user-agent` varchar(500) DEFAULT NULL,`ip` varchar(50) DEFAULT NULL,`time` int(11) DEFAULT NULL,`archive` int(11) DEFAULT 0,`screenshot` LONGTEXT NULL DEFAULT NULL,`localstorage` LONGTEXT NULL DEFAULT NULL, `sessionstorage` LONGTEXT NULL DEFAULT NULL,PRIMARY KEY (`id`)) ENGINE=MyISAM  DEFAULT CHARSET=utf8 AUTO_INCREMENT=0;'
         );
         $this->database->query(
-            'INSERT INTO `settings` (`setting`, `value`) VALUES ("filter-save", "0"),("filter-alert", "0"),("dompart", "500"),("timezone", "Europe/Amsterdam"),("customjs", ""),("blocked-domains", ""),("notepad", "Welcome :-)"),("screenshot", "0"),("secret", ""),("killswitch", "");'
+            'INSERT INTO `settings` (`setting`, `value`) VALUES ("filter-save", "0"),("filter-alert", "0"),("dompart", "500"),("timezone", "Europe/Amsterdam"),("customjs", ""),("blocked-domains", ""),("notepad", "Welcome :-)"),("secret", ""),("killswitch", ""),("collect_uri", "1"), ("collect_ip", "1"), ("collect_referer", "1"), ("collect_user-agent", "1"), ("collect_cookies", "1"),("collect_localstorage", "1"), ("collect_sessionstorage", "1"), ("collect_dom", "1"), ("collect_origin", "1"), ("collect_screenshot", "0"),("theme", "classic");'
         );
         $this->database->fetch(
             'INSERT INTO `settings` (`setting`, `value`) VALUES ("password", :password),("email", :email),("payload-domain", :domain),("version", :version),("emailfrom", "ezXSS");',
@@ -141,6 +140,11 @@ class User
             ],
             '3.6' => [
                 'INSERT INTO `settings` (`setting`, `value`) VALUES ("emailfrom", "ezXSS");'
+            ],
+            '3.9' => [
+                'INSERT INTO `settings` (`setting`, `value`) VALUES ("collect_uri", "1"), ("collect_ip", "1"), ("collect_referer", "1"), ("collect_user-agent", "1"), ("collect_cookies", "1"),("theme", "classic");',
+                'INSERT INTO `settings` (`setting`, `value`) VALUES ("collect_localstorage", "1"), ("collect_sessionstorage", "1"), ("collect_dom", "1"), ("collect_origin", "1"), ("collect_screenshot", "0");',
+                'DELETE FROM `settings` WHERE `setting` = "screenshot"',
             ]
         ];
 
@@ -181,37 +185,46 @@ class User
      * @param string $domPart DOM Length for mail
      * @param string $timezone Timezone for reports
      * @param string $payload Payload domain used
+     * @param string $filterId
+     * @param string $domains
      * @return string success
      */
-    public function settings($email, $emailFrom, $domPart, $timezone, $payload)
+    public function settings($email, $emailFrom, $domPart, $timezone, $theme, $filterId, $domains)
     {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return 'This is not a correct email address.';
         }
 
         if (!is_int((int)$domPart)) {
-            return 'The dom lenght needs to be a int number.';
+            return 'The dom length needs to be a int number.';
         }
 
         if (!in_array($timezone, timezone_identifiers_list())) {
             return 'The timezone is not a valid timezone.';
         }
 
+        $theme = preg_replace('/[^a-zA-Z0-9]/', '', $theme);
+        if(!file_exists(__DIR__ . "/../assets/css/{$theme}.css")) {
+            return 'This theme is not installed.';
+        }
+
+        $filterSave = ($filterId == 1 || $filterId == 2) ? 1 : 0;
+        $filterAlert = ($filterId == 1 || $filterId == 3) ? 1 : 0;
+        $currentTheme = $this->database->fetchSetting('theme');
+
         $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "email"', [':value' => $email]);
         $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "emailfrom"', [':value' => $emailFrom]);
-        $this->database->fetch(
-            'UPDATE settings SET value = :value WHERE setting = "dompart"',
-            [':value' => (int)$domPart]
-        );
-        $this->database->fetch(
-            'UPDATE settings SET value = :value WHERE setting = "timezone"',
-            [':value' => $timezone]
-        );
-        $this->database->fetch(
-            'UPDATE settings SET value = :value WHERE setting = "payload-domain"',
-            [':value' => $payload]
-        );
-        $this->createSession();
+        $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "dompart"', [':value' => (int)$domPart]);
+        $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "timezone"', [':value' => $timezone]);
+        $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "theme"', [':value' => $theme]);
+        $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "blocked-domains"', [':value' => $domains]);
+        $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "filter-save"', [':value' => $filterSave]);
+        $this->database->fetch('UPDATE settings SET value = :value WHERE setting = "filter-alert"', [':value' => $filterAlert]);
+
+        if($theme !== $currentTheme) {
+            return ['redirect' => 'settings'];
+        }
+
         return 'Your new settings are saved!';
     }
 
@@ -225,18 +238,18 @@ class User
      */
     public function password($password, $newPassword, $newPassword2)
     {
-        $currentPassword = $this->database->fetch('SELECT * FROM settings WHERE setting = "password" LIMIT 1');
+        $currentPassword = $this->database->fetchSetting('password');
 
-        if (!password_verify($password, $currentPassword['value'])) {
+        if (!password_verify($password, $currentPassword)) {
             return 'Current password is not correct.';
         }
 
         if (strlen($newPassword) < 8) {
-            return 'The new password needs to be atleast 8 characters long.';
+            return 'The new password needs to be at least 8 characters long.';
         }
 
-        if ($newPassword != $newPassword2) {
-            return 'The retypted password is not the same as the new password.';
+        if ($newPassword !== $newPassword2) {
+            return 'The retyped password is not the same as the new password.';
         }
 
         $this->database->fetch(
@@ -246,48 +259,6 @@ class User
         $this->createSession();
 
         return 'Your new password is saved!';
-    }
-
-    /**
-     * Update filter values
-     * @method filter
-     * @param string $id Filter combination id
-     * @return string success
-     */
-    public function filter($id)
-    {
-        switch ($id) {
-            case 1 :
-                $filterSave = 1;
-                $filterAlert = 1;
-                break;
-            case 2 :
-                $filterSave = 1;
-                $filterAlert = 0;
-                break;
-            case 3 :
-                $filterSave = 0;
-                $filterAlert = 1;
-                break;
-            case 4 :
-                $filterSave = 0;
-                $filterAlert = 0;
-                break;
-            default :
-                $filterSave = 0;
-                $filterAlert = 0;
-                break;
-        }
-
-        $this->database->fetch(
-            'UPDATE settings SET value = :value WHERE setting = "filter-save"',
-            [':value' => $filterSave]
-        );
-        $this->database->fetch(
-            'UPDATE settings SET value = :value WHERE setting = "filter-alert"',
-            [':value' => $filterAlert]
-        );
-        return 'Your new filter options are saved!';
     }
 
     /**
@@ -302,19 +273,28 @@ class User
         return 'Your new screenshot options are saved!';
     }
 
-    /**
-     * Update blocked domains
-     * @method blockDomains
-     * @param string $domains List of domains
-     * @return string success
-     */
-    public function blockDomains($domains)
-    {
-        $this->database->fetch(
-            'UPDATE settings SET value = :value WHERE setting = "blocked-domains"',
-            [':value' => $domains]
-        );
-        return 'Your new settings are saved!';
+    public function collecting($select) {
+        $options = ['uri', 'ip', 'referer', 'user-agent', 'cookies', 'localstorage', 'sessionstorage', 'dom', 'origin', 'screenshot'];
+        foreach($options as $option) {
+            if (isset($select[$option])) {
+                $this->database->fetch(
+                    'UPDATE settings SET value = :value WHERE setting = :setting',
+                    [
+                        'setting' => "collect_{$option}",
+                        ':value' => '1'
+                    ]
+                );
+            } else {
+                $this->database->fetch(
+                    'UPDATE settings SET value = :value WHERE setting = :setting',
+                    [
+                        'setting' => "collect_{$option}",
+                        ':value' => '0'
+                    ]
+                );
+            }
+        }
+        return 'Collecting settings are saved.';
     }
 
     /**
@@ -327,7 +307,7 @@ class User
     {
         $this->database->fetch(
             'UPDATE settings SET value = :value WHERE setting = "customjs"',
-            [':value' => $customjs]
+            [':value' => base64_decode($customjs)]
         );
         return 'Your new settings are saved!';
     }
@@ -341,14 +321,14 @@ class User
      */
     public function twofactor($secret, $code)
     {
-        $secretCode = $this->database->fetch('SELECT * FROM settings WHERE setting = "secret"');
+        $secretCode = $this->database->fetchSetting('secret');
 
         if (strlen($secret) == 16) {
-            if (strlen($secretCode['value']) == 16) {
+            if (strlen($secretCode) === 16) {
                 return '2FA settings are already enabled.';
             }
 
-            if (strlen($secret) != 16) {
+            if (strlen($secret) !== 16) {
                 return 'Secret length needs to be 16 characters long';
             }
 
@@ -356,11 +336,11 @@ class User
                 return 'Code is incorrect.';
             }
         } else {
-            if (strlen($secretCode['value']) != 16) {
+            if (strlen($secretCode) !== 16) {
                 return '2FA settings are already disabled.';
             }
 
-            if ($this->basic->getCode($secretCode['value']) != $code) {
+            if ($this->basic->getCode($secretCode) != $code) {
                 return 'Code is incorrect.';
             }
 
@@ -375,7 +355,6 @@ class User
      * Update archive status
      * @method archiveReport
      * @param string $id report id
-     * @param string $archive either 1 of 0
      * @return string success
      */
     public function archiveReport($id)
@@ -428,7 +407,7 @@ class User
         }
 
         if(!empty($domain)) {
-            $report['referrer'] = !empty($report['referer']) ? 'Shared via ' . $_SERVER['SERVER_NAME'] . ' - ' . $report['referer'] : 'Shared via ' . $_SERVER['SERVER_NAME'];
+            $report['referer'] = !empty($report['referer']) ? 'Shared via ' . $_SERVER['SERVER_NAME'] . ' - ' . $report['referer'] : 'Shared via ' . $_SERVER['SERVER_NAME'];
             $report['shared'] = true;
 
             $cb = curl_init((parse_url($domain, PHP_URL_SCHEME) ? '' : 'https://') . $domain . '/callback');
@@ -438,7 +417,7 @@ class User
             curl_setopt($cb, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             $result = curl_exec($cb);
 
-            if ($result != 'github.com/ssl/ezXSS') {
+            if ($result !== 'github.com/ssl/ezXSS') {
                 return 'Unable to find a valid ezXSS installation. Please check the domain.';
             }
 
@@ -486,9 +465,9 @@ class User
                 $this->basic->htmlBlocks('mail')
             );
 
-            $emailfrom = $this->database->fetch('SELECT * FROM settings WHERE setting = "emailfrom"');
+            $emailfrom = $this->database->fetchSetting('emailform');
 
-            $headers[] = 'From: ' . $emailfrom['value'];
+            $headers[] = 'From: ' . $emailfrom;
             $headers[] = 'MIME-Version: 1.0';
             $headers[] = 'Content-type: text/html; charset=iso-8859-1';
             mail(
@@ -549,5 +528,67 @@ class User
             );
         }
         return 'Reports are archived.';
+    }
+
+    /**
+     * Get statistics of amount of reports
+     * @method statistics
+     * @return string count
+     */
+    public function statistics()
+    {
+        $statistics = ['total' => 0, 'week' => 0, 'totaldomains' => 0, 'weekdomains' => 0, 'totalshared' => 0, 'last' => 'never'];
+
+        $allReports = $this->database->fetchAll('SELECT origin,time,referer FROM reports ORDER BY id ASC', []);
+
+        $statistics['total'] = count($allReports);
+
+        $uniqueDomains = [];
+        $uniqueDomainsWeek = [];
+        foreach($allReports as $report) {
+
+            // Counts report from last week
+            if($report['time'] > time() - 604800) {
+                $statistics['week']++;
+
+                // Counts unique domains from last week
+                if(!in_array($report['origin'], $uniqueDomainsWeek, true)) {
+                    $uniqueDomainsWeek[] = $report['origin'];
+                    $statistics['weekdomains']++;
+                }
+            }
+
+            // Counts unique domains
+            if(!in_array($report['origin'], $uniqueDomains, true)) {
+                $uniqueDomains[] = $report['origin'];
+                $statistics['totaldomains']++;
+            }
+
+            // Counts amount of shared reports
+            if(strpos($report['referer'], "Shared via ") === 0) {
+                $statistics['totalshared']++;
+            }
+        }
+
+        $lastReport = end($allReports);
+        if(isset($lastReport['time'])) {
+            $time = time() - $lastReport['time'];
+            $syntaxText = 's';
+            if ($time > 60) {
+                $time /= 60;
+                $syntaxText = 'm';
+            }
+            if ($time > 60) {
+                $time /= 60;
+                $syntaxText = 'h';
+            }
+            if ($time > 24) {
+                $time /= 24;
+                $syntaxText = 'd';
+            }
+            $statistics['last'] = floor($time) . $syntaxText;
+        }
+
+        return json_encode($statistics);
     }
 }

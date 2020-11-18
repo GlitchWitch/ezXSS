@@ -39,40 +39,40 @@ class Route
      */
     public function template($file)
     {
-        if (!in_array($file, $this->validTemplates) || $file == '') {
+        if (!in_array($file, $this->validTemplates, true)) {
             return $this->redirect('login');
         }
 
-        if ($file == 'report' && isset(explode('/', $_SERVER['REQUEST_URI'])[4])) {
+        if ($file === 'report' && isset(explode('/', $_SERVER['REQUEST_URI'])[4])) {
             return $this->redirect('reports');
         }
 
-        if ($this->user->isLoggedIn() && ($file == 'login' || $file == 'install')) {
+        if ($this->user->isLoggedIn() && ($file === 'login' || $file === 'install')) {
             return $this->redirect('dashboard');
         }
 
-        if (!$this->user->isLoggedIn() && $file != 'login' && $file != 'install' && $file != 'report' && $file != 'update') {
+        if (!$this->user->isLoggedIn() && $file !== 'login' && $file !== 'install' && $file !== 'report' && $file !== 'update') {
             return $this->redirect('login');
         }
 
-        if ($file == 'report' && ((is_numeric(explode('/', $_SERVER['REQUEST_URI'])[3]) && !$this->user->isLoggedIn(
+        if ($file === 'report' && ((is_numeric(explode('/', $_SERVER['REQUEST_URI'])[3]) && !$this->user->isLoggedIn(
                     )) || empty(explode('/', $_SERVER['REQUEST_URI'])[3]))) {
             return $this->redirect('login');
         }
 
-        if (!$this->database->rowCount('SELECT * FROM settings') > 0 && $file != 'install') {
+        if ($file !== 'install' && !$this->database->isInstalled()) {
             return $this->redirect('install');
         }
 
-        if ($this->database->rowCount('SELECT * FROM settings') > 0 && $file == 'install') {
+        if ($file === 'install' && $this->database->isInstalled()) {
             return $this->redirect('login');
         }
 
-        if($file != 'update' && $file != 'install' && $this->database->fetchSetting('version') !== version) {
+        if($file !== 'update' && $file !== 'install' && $this->database->fetchSetting('version') !== version) {
             return $this->redirect('update');
         }
 
-        if($file == 'update' && $this->database->fetchSetting('version') === version) {
+        if($file === 'update' && $this->database->fetchSetting('version') === version) {
             return $this->redirect('login');
         }
 
@@ -83,11 +83,13 @@ class Route
      * Redirect browser to link
      * @method redirect
      * @param string $page Page link to redirect to
+     * @return string
      */
     private function redirect($page)
     {
         $_SESSION['redirect'] = $_SERVER['REQUEST_URI'];
         header("Location: /manage/{$page}");
+        return 'Redirect';
     }
 
     /**
@@ -109,11 +111,11 @@ class Route
             $this->basic->htmlBlocks('main')
         );
 
-        preg_match_all('/{{(.*?)\[(.*?)\]}}/', $html, $matches);
+        preg_match_all('/{{(.*?)\[(.*?)]}}/', $html, $matches);
         foreach ($matches[1] as $key => $value) {
             $html = str_replace(
                 $matches[0][$key],
-                $this->component->$value("{$matches[2][$key]}"),
+                $this->component->$value((string)($matches[2][$key])),
                 $html
             );
         }
@@ -125,6 +127,7 @@ class Route
      * Return html of provided template
      * @method parseTemplate
      * @param string $file Requested template
+     * @param string $extension
      * @return string HTML of template
      */
     private function getFile($file, $extension = 'html')
@@ -140,20 +143,21 @@ class Route
      */
     public function callback($phpInput)
     {
-        $json = json_decode($phpInput);
+        $json = json_decode($phpInput, false);
 
         $setting = [];
         foreach ($this->database->query('SELECT * FROM settings') as $settings) {
             $setting[$settings['setting']] = $settings['value'];
         }
 
-        $userIp = isset($json->shared) ? $json->ip : (isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? $_SERVER['HTTP_CF_CONNECTING_IP'] : $_SERVER['REMOTE_ADDR']);
+        $userIp = $json->ip ?? $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'];
         $domain = htmlspecialchars($_SERVER['SERVER_NAME']);
         $json->origin = str_replace(['https://', 'http://'], '', $json->origin);
 
         if ($json->origin == $setting['blocked-domains'] || in_array(
                 $json->origin,
-                explode(',', $setting['blocked-domains'])
+                explode(',', $setting['blocked-domains']),
+                true
             )) {
             return 'github.com/ssl/ezXSS';
         }
@@ -166,7 +170,7 @@ class Route
                     ':cookies' => $json->cookies,
                     ':dom' => $json->dom,
                     ':origin' => $json->origin,
-                    ':referer' => $json->referrer,
+                    ':referer' => $json->referer,
                     ':uri' => $json->uri,
                     ':userAgent' => $json->{'user-agent'},
                     ':ip' => $userIp
@@ -207,12 +211,12 @@ class Route
                     ':cookies' => $json->cookies,
                     ':dom' => $json->dom,
                     ':origin' => $json->origin,
-                    ':referer' => $json->referrer,
+                    ':referer' => $json->referer,
                     ':uri' => $json->uri,
                     ':userAgent' => $json->{'user-agent'},
                     ':ip' => $userIp,
                     ':time' => time(),
-                    ':screenshot' => ((isset($screenshotName)) ? $screenshotName : ''),
+                    ':screenshot' => ($screenshotName ?? ''),
                     ':localstorage' => json_encode($json->localstorage),
                     ':sessionstorage' => json_encode($json->sessionstorage),
                     ':payload' => $json->payload
@@ -246,7 +250,7 @@ class Route
                         htmlspecialchars($domain),
                         htmlspecialchars($json->uri),
                         htmlspecialchars($userIp),
-                        htmlspecialchars($json->referrer),
+                        htmlspecialchars($json->referer),
                         htmlspecialchars($json->payload),
                         htmlspecialchars($json->{'user-agent'}),
                         htmlspecialchars($json->cookies),
@@ -282,7 +286,7 @@ class Route
      */
     public function jsPayload()
     {
-        if ((!$this->database->rowCount('SELECT * FROM settings')) > 0) {
+        if (!$this->database->isInstalled()) {
             return $this->redirect('install');
         }
 
@@ -296,15 +300,23 @@ class Route
             }
         }
 
+        $noCollect = '';
+        foreach ($this->database->fetchAll('SELECT setting,value FROM settings WHERE setting LIKE "%collect_%"', []) as $setting) {
+            if($setting['value'] === '0' && $setting['setting'] !== 'collect_screenshot') {
+                $noCollect .= "'" . str_replace('collect_', '', $setting['setting']) . "',";
+            }
+        }
+
         return str_replace(
-            ['{{domain}}', '{{screenshot}}', '{{customjs}}', '{{version}}', '{{payload}}', '{{payloadFile}}'],
+            ['{{domain}}', '{{screenshot}}', '{{customjs}}', '{{version}}', '{{payload}}', '{{payloadFile}}', '{{noCollect}}'],
             [
                 $this->basic->domain(),
-                (($this->database->fetchSetting('screenshot')) ? $this->getFile('screenshot', 'js') : ''),
+                (($this->database->fetchSetting('collect_screenshot')) ? $this->getFile('screenshot', 'js') : ''),
                 $this->database->fetchSetting('customjs'),
                 version,
                 htmlspecialchars("//{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}"),
-                $payloadFile
+                $payloadFile,
+                rtrim($noCollect, ',')
             ],
             $this->getFile($payloadFile, 'js')
         );
@@ -316,19 +328,14 @@ class Route
      */
     private function verifySettings(): void
     {
-        if(!empty($this->database->fetchSetting('killswitch'))) {
-            if(isset($_GET['pass']) && $_GET['pass'] === $this->database->fetchSetting('killswitch')) {
+        $killSwitchPassowrd = $this->database->fetchSetting('killswitch');
+        if(!empty($killSwitchPassowrd)) {
+            if(isset($_GET['pass']) && $_GET['pass'] === $killSwitchPassowrd) {
                 $this->database->query("UPDATE settings SET value = '' WHERE setting = 'killswitch';");
             } else {
                 http_response_code(404);
                 exit();
             }
-        }
-
-        if (!empty($this->database->fetchSetting('timezone'))) {
-            date_default_timezone_set($this->database->fetchSetting('timezone'));
-        } else {
-            date_default_timezone_set('Europe/Amsterdam');
         }
     }
 }

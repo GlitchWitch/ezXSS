@@ -24,7 +24,7 @@ class Basic
         $hash = hash_hmac('SHA1', chr(0) . chr(0) . chr(0) . chr(0) . pack('N*', floor(time() / 30)), $secretKey, true);
         $value = unpack('N', substr($hash, ord(substr($hash, -1)) & 0x0F, 4));
         $value = $value[1] & 0x7FFFFFFF;
-        return str_pad($value % pow(10, 6), 6, '0', STR_PAD_LEFT);
+        return str_pad($value % (10 ** 6), 6, '0', STR_PAD_LEFT);
     }
 
     private function baseDecode($data)
@@ -33,7 +33,7 @@ class Basic
         $buffer = 0;
         $bufferSize = 0;
         $result = '';
-        for ($i = 0; $i < strlen($data); $i++) {
+        for ($i = 0, $iMax = strlen($data); $i < $iMax; $i++) {
             $position = strpos($characters, $data[$i]);
             $buffer = ($buffer << 5) | $position;
             $bufferSize += 5;
@@ -109,20 +109,18 @@ HTML;
           <head>
             <meta charset="utf-8">
             <title>ezXSS ~ {{title}}</title>
-            <link rel="stylesheet" href="/assets/css/font-awesome.css" integrity="sha384-CA7nicOiG9xLJZ8K81i/oOvxFmpce86FdhD3mkdgvfuGMigwTwBElOMVQvEjkV9X" crossorigin="anonymous">
-            <link rel="stylesheet" href="/assets/css/bootstrap.css" integrity="sha384-GdlB5PJOMUfj80P5h0H9An3utYRUtyihpjksDyocWu1+XptBb/QB/sPgCrgYJCuZ" crossorigin="anonymous">
-            <link rel="stylesheet" href="/assets/css/style.css" integrity="sha384-Iny6sL805ZtFOrZ5JEzmYazKDtzoxw0CRXvMw7jLE/FqN3ehYg+RM2BTb1G2q+XY" crossorigin="anonymous">
-            <link rel="stylesheet" href="/assets/css/new.css">
+            <link rel="stylesheet" href="/assets/css/classic.css">
+            {{theme[]}}
             <link rel="icon" href="/assets/img/favicon.ico" type="image/x-icon" />
             <meta name="MobileOptimized" content="width">
             <meta name="HandheldFriendly" content="true">
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
           </head>
-          <body>
+          <body class="theme">
             {{template}}
-
-            <script src="/assets/js/jquery.js" integrity="sha384-3ceskX3iaEnIogmQchP8opvBy3Mi7Ce34nWjpBIwVTHfGYWQS9jwHDVRnpKKHJg7" crossorigin="anonymous"></script>
-            <script src="/assets/js/bootstrap.js" integrity="sha384-hFgRcCfdoHZzpNxRIokVxKLVvuKCFoY3CNDrnFkk7pGwsQNKvflHATtmGxcYcgbs" crossorigin="anonymous"></script>
+            <script type="text/javascript">const csrf = "{{csrf[true]}}";</script>
+            <script src="/assets/js/jquery.js" charset="utf-8"></script>
+            <script src="/assets/js/bootstrap.js" charset="utf-8"></script>
             <script src="/assets/js/ezxss.js" charset="utf-8"></script>
           </body>
         </html>
@@ -159,7 +157,7 @@ HTML;
 
         if ($htmlBlock == 'twofactorDisable') {
             return <<<HTML
-        <div class="form-group">
+        <div class="form-group" style="margin-top:35px;margin-bottom:30px">
           <p>You already enabled 2FA. Enter the code to disable it.</p>
         </div>
 

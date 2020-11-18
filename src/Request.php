@@ -19,11 +19,11 @@ class Request
      */
     public function json()
     {
-        if ($this->user->getCsrf() != $this->post('csrf')) {
+        if ($this->user->getCsrf() !== $this->post('csrf')) {
             return $this->convert('CSRF token is not valid');
         }
 
-        if (!$this->user->isLoggedIn() && $this->post('action') != 'login' && $this->post('action') != 'install' && $this->post('action') != 'update') {
+        if (!$this->user->isLoggedIn() && $this->post('action') !== 'login' && $this->post('action') !== 'install' && $this->post('action') !== 'update') {
             return $this->convert('You need to be logged in to perform this action.');
         }
 
@@ -44,7 +44,9 @@ class Request
                         $this->post('emailfrom'),
                         $this->post('dompart'),
                         $this->post('timezone'),
-                        $this->post('payload')
+                        $this->post('theme'),
+                        $this->post('filter'),
+                        $this->post('domains')
                     )
                 );
                 break;
@@ -56,15 +58,6 @@ class Request
                         $this->post('newpassword2')
                     )
                 );
-                break;
-            case 'filter-settings' :
-                return $this->convert($this->user->filter($this->post('filter')));
-                break;
-            case 'screenshot-settings' :
-                return $this->convert($this->user->screenshot($this->post('screenshot')));
-                break;
-            case 'block-settings' :
-                return $this->convert($this->user->blockDomains($this->post('domains')));
                 break;
             case 'payload-settings' :
                 return $this->convert($this->user->payload($this->post('customjs')));
@@ -93,6 +86,11 @@ class Request
             case 'update' :
                 return $this->convert($this->user->update());
                 break;
+            case 'collecting' :
+                return $this->convert($this->user->collecting($this->post('select')));
+                break;
+            case 'statistics':
+                return $this->user->statistics();
             default :
                 return $this->convert('This action does not exists.');
                 break;
@@ -107,7 +105,7 @@ class Request
      */
     private function post($key)
     {
-        return (isset($_POST[$key])) ? $_POST[$key] : '';
+        return $_POST[$key] ?? '';
     }
 
     /**
@@ -122,8 +120,8 @@ class Request
             return json_encode(['echo' => $array]);
         }
 
-        $array['echo'] = (isset($array['echo'])) ? $array['echo'] : false;
-        $array['redirect'] = (isset($array['redirect'])) ? $array['redirect'] : false;
+        $array['echo'] = $array['echo'] ?? false;
+        $array['redirect'] = $array['redirect'] ?? false;
         return json_encode($array);
     }
 
