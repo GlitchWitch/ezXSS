@@ -10,8 +10,8 @@
 |
 */
 
-define('version', '3.9');
-define('debug', false);
+define('version', '3.10');
+define('debug', true);
 
 if (debug) {
     error_reporting(E_ALL);
@@ -56,6 +56,9 @@ if ($config === false) {
 }
 define('config', $config);
 
+$adminUrl = htmlspecialchars((new Database())->fetchSetting('adminurl') ?? 'manage');
+define('adminURL', $adminUrl);
+
 /*
 |---------------------------------------------------------------
 | PRE-ROUTE
@@ -68,8 +71,8 @@ define('config', $config);
 
 $requestUrl = explode('?', $_SERVER['REQUEST_URI'])[0];
 
-if (strpos($requestUrl, '/manage/') === 0 || strpos($requestUrl, '/manage') === 0) {
-    $path = str_replace('/manage/', '', explode('?', $_SERVER['REQUEST_URI'])[0]);
+if (strpos($requestUrl, '/'.$adminUrl.'/') === 0 || strpos($requestUrl, '/'.$adminUrl) === 0) {
+    $path = str_replace('/'.$adminUrl.'/', '', explode('?', $_SERVER['REQUEST_URI'])[0]);
 
     if (explode('/', $path)[0] === 'report') {
         $path = explode('/', $path)[0];

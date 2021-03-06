@@ -18,6 +18,7 @@ input,button,select{font-family:inherit;font-size:inherit;line-height:inherit}
 img{vertical-align:middle}
 p{margin:0 0 10px}
 .col-lg-6,.col-lg-12{position:relative;min-height:1px;padding-right:15px;padding-left:15px}
+.col-lg-4{position: relative;min-height: 1px;padding-right: 10px;padding-left: 10px;}
 .input-group{position:relative;display:table;border-collapse:separate}
 .input-group .form-control{position:relative;z-index:2;float:left;width:100%;margin-bottom:0}
 .input-group .form-control:focus{z-index:3}
@@ -221,7 +222,7 @@ th{width:150px}
 .navigation:before{transition:left 0.3s ease-out;-webkit-transition:left 0.3s ease-out;content:'';position:fixed;top:0;bottom:0;z-index:-1;left:0;background-color:#2b3157;width:200px}
 a{color:#f6a821;text-decoration:none}
 a:hover,a:focus{color:#fff;outline:none}
-hr{margin-top:20px;margin-bottom:20px;border:0;border-top:1px solid #2b3157}
+hr{margin-top:20px;margin-bottom:20px;border:0;border-top:1px solid #686d93}
 .row{margin-left:-10px;margin-right:-10px}
 .col-lg-12{padding-left:10px;padding-right:10px}
 .left-nav-toggle{float:left;padding:9px 10px 8px 25px}
@@ -299,9 +300,10 @@ th{color:#ffffff}
 
 @media (min-width: 1200px){
     .col-lg-12{width:100%}
-    .col-lg-2,.col-lg-6,.col-lg-12{float:left}
+    .col-lg-2,.col-lg-6,.col-lg-12,.col-lg-4{float:left}
     .col-lg-6{width:50%}
     .col-lg-2{width:16.66666667%}
+    .col-lg-4 {width: 33.33333333%;}
 }
 
 @media screen and (max-width: 767px){

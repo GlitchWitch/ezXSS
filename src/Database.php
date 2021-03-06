@@ -4,6 +4,7 @@ class Database
 {
     private $DB;
     private $settingsCache = [];
+    private $isInstalled = null;
 
     /**
      * Try to connect to database
@@ -72,7 +73,7 @@ class Database
      * @param array $array Array with bind values
      * @return int result of query
      */
-    public function rowCount($query, $array = [])
+    public function rowCount($query, $array = []): int
     {
         $rowCount = $this->DB->prepare($query);
         $rowCount->execute($array);
@@ -113,9 +114,22 @@ class Database
         return $fetch->fetch();
     }
 
-    public function isInstalled() {
-        $rowCount = $this->rowCount('SELECT id FROM settings');
-        return $rowCount > 0;
+    /**
+     * Returns true of false if ezXSS is installed
+     * @return bool
+     */
+    public function isInstalled(): bool
+    {
+        if($this->isInstalled === null) {
+            try {
+                $rowCount = $this->rowCount('SELECT id FROM settings');
+                $this->isInstalled = $rowCount > 0;
+            } catch (PDOException $exception) {
+                $this->isInstalled = false;
+            }
+        }
+
+        return $this->isInstalled;
     }
 
 }

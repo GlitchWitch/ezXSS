@@ -17,7 +17,7 @@ class Request
      * @method json
      * @return string converted json value
      */
-    public function json()
+    public function json(): ?string
     {
         if ($this->user->getCsrf() !== $this->post('csrf')) {
             return $this->convert('CSRF token is not valid');
@@ -40,15 +40,33 @@ class Request
             case 'main-settings' :
                 return $this->convert(
                     $this->user->settings(
-                        $this->post('email'),
-                        $this->post('emailfrom'),
-                        $this->post('dompart'),
                         $this->post('timezone'),
                         $this->post('theme'),
+                        $this->post('adminurl'),
                         $this->post('filter'),
-                        $this->post('domains')
+                        $this->post('dompart')
                     )
                 );
+                break;
+            case 'email-alert-settings':
+                return $this->convert($this->user->emailAlertSettings(
+                    $this->post('mailon'),
+                    $this->post('email'),
+                    $this->post('emailfrom')
+                ));
+                break;
+            case 'telegram-alert-settings':
+                return $this->convert($this->user->telegramAlertSettings(
+                    $this->post('telegramon'),
+                    $this->post('telegram_bottoken'),
+                    $this->post('telegram_chatid')
+                ));
+                break;
+            case 'callback-alert-settings':
+                return $this->convert($this->user->callbackAlertSettings(
+                    $this->post('callbackon'),
+                    $this->post('callback_url')
+                ));
                 break;
             case 'password-settings' :
                 return $this->convert(
@@ -91,6 +109,16 @@ class Request
                 break;
             case 'statistics':
                 return $this->user->statistics();
+            case 'getchatid':
+                return $this->convert($this->user->getChatId($this->post('bottoken')));
+            case 'remove-domain':
+                return $this->convert($this->user->removeDomain($this->post('type'), $this->post('id')));
+            case 'blacklist-domains':
+                return $this->convert($this->user->addDomain('blacklist', $this->post('blacklist-domain')));
+            case 'whitelist-domains':
+                return $this->convert($this->user->addDomain('whitelist', $this->post('whitelist-domain')));
+            case 'extract-pages':
+                return $this->convert($this->user->addDomain('page', $this->post('path')));
             default :
                 return $this->convert('This action does not exists.');
                 break;
@@ -111,10 +139,10 @@ class Request
     /**
      * Convert a string or array to a JSON string
      * @method post
-     * @param array $array array or string
+     * @param array|string $array array or string
      * @return string json value
      */
-    private function convert($array)
+    private function convert($array): string
     {
         if (!is_array($array)) {
             return json_encode(['echo' => $array]);

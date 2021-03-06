@@ -8,17 +8,22 @@ class Basic
         $this->base32Characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     }
 
-    public function screenshotPath($screenshotName)
+    public function screenshotPathImg($screenshotName): string
     {
         return '<img style="max-width: 100%;" src="http://' . $this->domain() . '/assets/img/report-' . $screenshotName . '.png">';
     }
 
-    public function domain()
+    public function screenshotPath($screenshotName): string
+    {
+        return 'http://' . $this->domain() . '/assets/img/report-' . $screenshotName . '.png';
+    }
+
+    public function domain(): string
     {
         return htmlspecialchars($_SERVER['SERVER_NAME']);
     }
 
-    public function getCode($secret)
+    public function getCode($secret): string
     {
         $secretKey = $this->baseDecode($secret);
         $hash = hash_hmac('SHA1', chr(0) . chr(0) . chr(0) . chr(0) . pack('N*', floor(time() / 30)), $secretKey, true);
@@ -27,7 +32,7 @@ class Basic
         return str_pad($value % (10 ** 6), 6, '0', STR_PAD_LEFT);
     }
 
-    private function baseDecode($data)
+    private function baseDecode($data): string
     {
         $characters = $this->base32Characters;
         $buffer = 0;
@@ -46,7 +51,7 @@ class Basic
         return $result;
     }
 
-    public function htmlBlocks($htmlBlock)
+    public function htmlBlocks($htmlBlock): string
     {
         if ($htmlBlock == 'menu') {
             return <<<HTML
@@ -66,13 +71,13 @@ class Basic
               </li>
 
               <li class="nav-category">Main</li>
-              <li><a href="/manage/dashboard">Dashboard</a></li>
-              <li><a href="/manage/settings">Settings</a></li>
-              <li><a href="/manage/payload">Payload</a></li>
+              <li><a href="/{{adminURL[]}}/dashboard">Dashboard</a></li>
+              <li><a href="/{{adminURL[]}}/settings">Settings</a></li>
+              <li><a href="/{{adminURL[]}}/payload">Payload</a></li>
 
               <li class="nav-category">Reports</li>
-              <li><a href="/manage/reports">Reports</a></li>
-              <li><a href="/manage/archive">Archived reports</a></li>
+              <li><a href="/{{adminURL[]}}/reports">Reports</a></li>
+              <li><a href="/{{adminURL[]}}/archive">Archived reports</a></li>
             </ul>
           </nav>
         </aside>
@@ -216,6 +221,51 @@ HTML;
 HTML;
         }
 
+        if ($htmlBlock == 'telegram') {
+            return <<<HTML
+***XSS Report #{{id}}***
+Get a fast view below or view the whole report on https://{{domain}}/{{adminURL}}/report/{{id}}
+
+***URL***
+```
+{{url}}```
+***IP***
+```
+{{ip}}```
+***Referer***
+```
+{{referer}}```
+***Payload***
+```
+{{payload}}```
+***User Agent***
+```
+{{user-agent}}```
+***Cookies***
+```
+{{cookies}}```
+***Local Storage***
+```
+{{localstorage}}```
+***Session Storage***
+```
+{{sessionstorage}}```
+***DOM***
+```
+{{dom}}```
+***Origin***
+```
+{{origin}}```
+***Time***
+```
+{{time}}```
+***Screenshot***
+```
+{{screenshot}}```
+HTML;
+
+        }
+
         if ($htmlBlock == 'mail') {
             return <<<HTML
         <!DOCTYPE html>
@@ -232,6 +282,7 @@ HTML;
               <div class="view-header">
                 <div class="header-title">
                   <h3 class="h">XSS Report #{{id}}</h3>
+                  <small>Get a fast view below or view the whole report on https://{{domain}}/{{adminURL}}/report/{{id}}</small>
                 </div>
               </div>
               <hr>
@@ -247,52 +298,52 @@ HTML;
                     </thead>
                     <tbody>
                       <tr>
-                        <td>URL</td>
+                        <td style="color: #5e648b;">URL</td>
                         <td style="color: #5e648b;">{{url}}</td>
                       </tr>
                       <tr>
-                        <td>IP</td>
-                        <td>{{ip}}</td>
+                        <td style="color: #5e648b;">IP</td>
+                        <td style="color: #5e648b;">{{ip}}</td>
                       </tr>
                       <tr>
-                        <td>Referer</td>
+                        <td style="color: #5e648b;">Referer</td>
                         <td style="color: #5e648b;">{{referer}}</td>
                       </tr>
                       <tr>
-                        <td>Payload</td>
+                        <td style="color: #5e648b;">Payload</td>
                         <td style="color: #5e648b;">{{payload}}</td>
                       </tr>
                       <tr>
-                        <td>User Agent</td>
-                        <td>{{user-agent}}</td>
+                        <td style="color: #5e648b;">User Agent</td>
+                        <td style="color: #5e648b;">{{user-agent}}</td>
                       </tr>
                       <tr>
-                        <td>Cookies</td>
+                        <td style="color: #5e648b;">Cookies</td>
                         <td style="color: #5e648b;">{{cookies}}</td>
                       </tr>
                       <tr>
-                        <td>Local Storage</td>
+                        <td style="color: #5e648b;">Local Storage</td>
                         <td><textarea spellcheck="false" style="width: 100%;color: #5e648b;height: 100px;background-color: transparent;border-color: #52587e;resize:vertical">{{localstorage}}</textarea></td>
                       </tr>
                       <tr>
-                        <td>Session Storage</td>
+                        <td style="color: #5e648b;">Session Storage</td>
                         <td><textarea spellcheck="false" style="width: 100%;color: #5e648b;height: 100px;background-color: transparent;border-color: #52587e;resize:vertical">{{sessionstorage}}</textarea></td>
                       </tr>
 
                       <tr>
-                        <td>DOM</td>
+                        <td style="color: #5e648b;">DOM</td>
                         <td><textarea spellcheck="false" style="width: 100%;color: #5e648b;height: 100px;background-color: transparent;border-color: #52587e;resize:vertical">{{dom}}</textarea></td>
                       </tr>
                       <tr>
-                        <td>Origin</td>
-                        <td>{{origin}}</td>
+                        <td style="color: #5e648b;">Origin</td>
+                        <td style="color: #5e648b;">{{origin}}</td>
                       </tr>
                       <tr>
-                        <td>Time</td>
-                        <td>{{time}}</td>
+                        <td style="color: #5e648b;">Time</td>
+                        <td style="color: #5e648b;">{{time}}</td>
                       </tr>
                       <tr>
-                        <td>Screenshot</td>
+                        <td style="color: #5e648b;">Screenshot</td>
                         <td>{{screenshot}}</td>
                       </tr>
                     </tbody>
