@@ -193,7 +193,7 @@ HTML;
              <label class="checkbox-label">
                 <input class="chkbox" type="checkbox" name="selected" value="{{report[id]}}" id="chk_{{report[id]}}" report-id="{{report[id]}}">
                 <span class="checkbox-custom rectangular"></span>
-            </label>
+            </label>           
           </td>
           <td><b>{{report[id]}}</b></td>
           <td>
